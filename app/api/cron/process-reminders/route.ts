@@ -1,3 +1,24 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-export async function GET(request: Request) { const auth = request.headers.get('authorization'); if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); const now = new Date(); const reminders = await prisma.task.findMany({ where: { reminderDateTime: { lte: now }, reminderProcessedAt: null, status: { not: 'COMPLETED' } }, take: 500 }); let reminderCount = 0; for (const task of reminders) { const claimed = await prisma.task.updateMany({ where: { id: task.id, reminderProcessedAt: null, status: { not: 'COMPLETED' } }, data: { reminderProcessedAt: now } }); if (!claimed.count) continue; await prisma.notification.create({ data: { userId: task.userId, taskId: task.id, type: 'REMINDER', title: 'Task reminder', message: `“${task.title}” is due soon.` }).catch(() => undefined); reminderCount++; } const overdue = await prisma.task.findMany({ where: { dueDate: { lt: now }, status: { in: ['PENDING','IN_PROGRESS'] }, overdueProcessedAt: null }, take: 500 }); let overdueCount = 0; for (const task of overdue) { const claimed = await prisma.task.updateMany({ where: { id: task.id, overdueProcessedAt: null, status: { in: ['PENDING','IN_PROGRESS'] } }, data: { status: 'OVERDUE', overdueProcessedAt: now } }); if (!claimed.count) continue; await prisma.notification.create({ data: { userId: task.userId, taskId: task.id, type: 'OVERDUE', title: 'Task overdue', message: `“${task.title}” was not completed before its deadline.` }).catch(() => undefined); overdueCount++; } return NextResponse.json({ ok: true, reminderCount, overdueCount }); }
+export async function GET(request: Request) {
+  const auth = request.headers.get('authorization');
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const now = new Date();
+  const reminders = await prisma.task.findMany({ where: { reminderDateTime: { lte: now }, reminderProcessedAt: null, status: { not: 'COMPLETED' } }, take: 500 });
+  let reminderCount = 0;
+  for (const task of reminders) {
+    const claimed = await prisma.task.updateMany({ where: { id: task.id, reminderProcessedAt: null, status: { not: 'COMPLETED' } }, data: { reminderProcessedAt: now } });
+    if (!claimed.count) continue;
+    await prisma.notification.create({ data: { userId: task.userId, taskId: task.id, type: 'REMINDER', title: 'Task reminder', message: `“${task.title}” is due soon.` } }).catch(() => undefined);
+    reminderCount++;
+  }
+  const overdue = await prisma.task.findMany({ where: { dueDate: { lt: now }, status: { in: ['PENDING', 'IN_PROGRESS'] }, overdueProcessedAt: null }, take: 500 });
+  let overdueCount = 0;
+  for (const task of overdue) {
+    const claimed = await prisma.task.updateMany({ where: { id: task.id, overdueProcessedAt: null, status: { in: ['PENDING', 'IN_PROGRESS'] } }, data: { status: 'OVERDUE', overdueProcessedAt: now } });
+    if (!claimed.count) continue;
+    await prisma.notification.create({ data: { userId: task.userId, taskId: task.id, type: 'OVERDUE', title: 'Task overdue', message: `“${task.title}” was not completed before its deadline.` }).catch(() => undefined);
+    overdueCount++;
+  }
+  return NextResponse.json({ ok: true, reminderCount, overdueCount });
+}
