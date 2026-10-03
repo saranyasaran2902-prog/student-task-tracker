@@ -1,0 +1,5 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth';
+export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) { const user = await getCurrentUser(); if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); const { id } = await params; const notification = await prisma.notification.findFirst({ where: { id, userId: user.id } }); if (!notification) return NextResponse.json({ error: 'Notification not found' }, { status: 404 }); await prisma.notification.delete({ where: { id } }); return NextResponse.json({ ok: true }); }
+export async function PUT(_: Request, { params }: { params: Promise<{ id: string }> }) { const user = await getCurrentUser(); if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); const { id } = await params; const result = await prisma.notification.updateMany({ where: { id, userId: user.id }, data: { isRead: true } }); if (!result.count) return NextResponse.json({ error: 'Notification not found' }, { status: 404 }); return NextResponse.json({ ok: true }); }
