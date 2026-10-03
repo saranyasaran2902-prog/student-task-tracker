@@ -1,0 +1,4 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth';
+export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) { const user = await getCurrentUser(); if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); const { id } = await params; const task = await prisma.task.findFirst({ where: { id, userId: user.id } }); if (!task) return NextResponse.json({ error: 'Task not found' }, { status: 404 }); const updated = await prisma.task.update({ where: { id }, data: { status: 'COMPLETED', completedAt: new Date() } }); await prisma.notification.create({ data: { userId: user.id, taskId: id, type: 'COMPLETED', title: 'Task completed', message: `You completed “${task.title}”.` }).catch(() => undefined); return NextResponse.json({ task: updated }); }
